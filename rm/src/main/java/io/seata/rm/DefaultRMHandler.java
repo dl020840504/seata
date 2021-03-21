@@ -15,19 +15,22 @@
  */
 package io.seata.rm;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import io.seata.common.exception.FrameworkException;
 import io.seata.common.loader.EnhancedServiceLoader;
 import io.seata.common.util.CollectionUtils;
+import io.seata.core.context.RootContext;
 import io.seata.core.model.BranchType;
 import io.seata.core.model.ResourceManager;
 import io.seata.core.protocol.transaction.BranchCommitRequest;
 import io.seata.core.protocol.transaction.BranchCommitResponse;
 import io.seata.core.protocol.transaction.BranchRollbackRequest;
 import io.seata.core.protocol.transaction.BranchRollbackResponse;
+import io.seata.core.protocol.transaction.UndoLogDeleteRequest;
+import org.slf4j.MDC;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * the default RM event handler implement, deal with the phase two events
@@ -36,8 +39,7 @@ import io.seata.core.protocol.transaction.BranchRollbackResponse;
  */
 public class DefaultRMHandler extends AbstractRMHandler {
 
-    protected static Map<BranchType, AbstractRMHandler> allRMHandlersMap
-        = new ConcurrentHashMap<BranchType, AbstractRMHandler>();
+    protected static Map<BranchType, AbstractRMHandler> allRMHandlersMap = new ConcurrentHashMap<>();
 
     protected DefaultRMHandler() {
         initRMHandlers();
@@ -54,12 +56,21 @@ public class DefaultRMHandler extends AbstractRMHandler {
 
     @Override
     public BranchCommitResponse handle(BranchCommitRequest request) {
+        MDC.put(RootContext.MDC_KEY_XID, request.getXid());
+        MDC.put(RootContext.MDC_KEY_BRANCH_ID, String.valueOf(request.getBranchId()));
         return getRMHandler(request.getBranchType()).handle(request);
     }
 
     @Override
     public BranchRollbackResponse handle(BranchRollbackRequest request) {
+        MDC.put(RootContext.MDC_KEY_XID, request.getXid());
+        MDC.put(RootContext.MDC_KEY_BRANCH_ID, String.valueOf(request.getBranchId()));
         return getRMHandler(request.getBranchType()).handle(request);
+    }
+
+    @Override
+    public void handle(UndoLogDeleteRequest request) {
+        getRMHandler(request.getBranchType()).handle(request);
     }
 
     protected AbstractRMHandler getRMHandler(BranchType branchType) {
